@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import process from 'node:process'
@@ -26,8 +24,7 @@ function main() {
             process.exitCode = 1
             return
         }
-        // Resolve path relative to the current working directory (CWD)
-        const filePath = path.resolve(process.cwd(), rel)
+        const filePath = path.resolve(__dirname, rel)
         const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
         stream.on('data', (chunk) => pipeline.handleRawChunk(chunk))
         stream.on('end', () => pipeline.end())
@@ -41,7 +38,6 @@ function main() {
         return
     }
 
-    // STDIN mode (no usage print by default to keep stdout clean)
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', (chunk) => pipeline.handleRawChunk(chunk))
     process.stdin.on('end', () => pipeline.end())
@@ -53,7 +49,6 @@ function main() {
         process.exitCode = 1
     })
 
-    // If running interactively, show a friendly prompt on stderr
     if (process.stdin.isTTY && process.stdout.isTTY) {
         const prompt = [
             'Interactive mode: type your text and press Ctrl+D when done.',
