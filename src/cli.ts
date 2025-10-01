@@ -26,8 +26,8 @@ function main() {
             process.exitCode = 1
             return
         }
-        // Resolve path relative to the current working directory (CWD)
-        const filePath = path.resolve(process.cwd(), rel)
+        // Resolve path relative to the script location (as per task requirement)
+        const filePath = path.resolve(__dirname, rel)
         const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
         stream.on('data', (chunk) => pipeline.handleRawChunk(chunk))
         stream.on('end', () => pipeline.end())
