@@ -3,60 +3,59 @@ export type UrlHandler = (rawToken: string) => void
 // Simple URL-like token regex: optional scheme, domain.tld, optional path/query/hash
 const URL_REGEX = /\b((https?:\/\/)?[\w.-]+\.[a-z]{2,}(?:\/\S*)?)\b/i
 
+interface BracketContext {
+    currentToken: string
+    lastUrlToken: string | null
+}
+
 export class StreamUrlParser {
     private handler: UrlHandler | null = null
-    private depth = 0
-    private inOuter = false
+    private stack: BracketContext[] = []
     private prevBackslash = false
-    private currentToken = ''
-    private lastUrlToken: string | null = null
 
     onUrl(fn: UrlHandler): void {
         this.handler = fn
     }
 
     write(chunk: string | Buffer): void {
-        const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+        if (chunk == null) return
+
+        const s = this.normalizeInput(chunk)
+
         for (let i = 0; i < s.length; i++) {
             const ch = s[i]!
 
             if (ch === '[') {
                 if (this.prevBackslash) {
-                    if (this.inOuter) this.finishToken()
+                    if (this.stack.length > 0) this.finishToken()
                     this.prevBackslash = false
                     continue
                 }
-                this.depth++
-                if (this.depth === 1) {
-                    this.inOuter = true
-                    this.currentToken = ''
-                    this.lastUrlToken = null
-                } else if (this.inOuter) {
+                if (this.stack.length > 0) {
                     this.finishToken()
                 }
+                this.stack.push({ currentToken: '', lastUrlToken: null })
                 this.prevBackslash = false
                 continue
             }
 
             if (ch === ']') {
                 if (this.prevBackslash) {
-                    if (this.inOuter) this.finishToken()
+                    if (this.stack.length > 0) this.finishToken()
                     this.prevBackslash = false
                     continue
                 }
-                if (this.inOuter) {
+                if (this.stack.length > 0) {
                     this.finishToken()
-                }
-                if (this.depth > 0) this.depth--
-                if (this.depth === 0 && this.inOuter) {
-                    if (this.lastUrlToken && this.handler) {
-                        this.handler(this.lastUrlToken)
+                    const context = this.stack.pop()!
+
+                    if (
+                        this.stack.length === 0 &&
+                        context.lastUrlToken &&
+                        this.handler
+                    ) {
+                        this.handler(context.lastUrlToken)
                     }
-                    this.inOuter = false
-                    this.currentToken = ''
-                    this.lastUrlToken = null
-                } else if (this.inOuter) {
-                    this.finishToken()
                 }
                 this.prevBackslash = false
                 continue
@@ -67,11 +66,12 @@ export class StreamUrlParser {
                 continue
             }
 
-            if (this.inOuter) {
+            if (this.stack.length > 0) {
+                const context = this.stack[this.stack.length - 1]!
                 if (this.isWhitespace(ch)) {
                     this.finishToken()
                 } else {
-                    this.currentToken += ch
+                    context.currentToken += ch
                 }
             }
 
@@ -80,6 +80,12 @@ export class StreamUrlParser {
     }
 
     end(): void {}
+
+    private normalizeInput(chunk: string | Buffer): string {
+        if (typeof chunk === 'string') return chunk
+        if (Buffer.isBuffer(chunk)) return chunk.toString('utf8')
+        return String(chunk)
+    }
 
     private isWhitespace(ch: string): boolean {
         return (
@@ -93,12 +99,15 @@ export class StreamUrlParser {
     }
 
     private finishToken(): void {
-        if (this.currentToken.length > 0) {
-            const token = this.currentToken
+        if (this.stack.length === 0) return
+
+        const context = this.stack[this.stack.length - 1]!
+        if (context.currentToken.length > 0) {
+            const token = context.currentToken
             if (URL_REGEX.test(token)) {
-                this.lastUrlToken = token
+                context.lastUrlToken = token
             }
-            this.currentToken = ''
+            context.currentToken = ''
         }
     }
 }

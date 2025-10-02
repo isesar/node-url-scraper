@@ -1,12 +1,13 @@
 import { StreamUrlParser } from '../parser/streamUrlParser'
 import { normalize } from '../parser/urlNormalize'
 import { fetchOnce } from '../net/httpClient'
-import { enqueue } from '../net/rateLimiter'
+import { enqueue, onIdle } from '../net/rateLimiter'
 import { extract } from '../extract/htmlExtract'
 
 export interface Pipeline {
     handleRawChunk: (chunk: string | Buffer) => void
     end: () => void
+    onComplete: (callback: () => void) => void
 }
 
 const DELAY = 60000
@@ -49,5 +50,6 @@ export function createPipeline(): Pipeline {
     return {
         handleRawChunk: (chunk) => parser.write(chunk),
         end: () => parser.end(),
+        onComplete: (callback) => onIdle(callback),
     }
 }

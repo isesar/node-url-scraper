@@ -12,6 +12,26 @@ Node.js CLI tool for parsing and scraping URLs from bracketed text with rate lim
 npm install
 ```
 
+### Configuration
+
+1. Copy `.env.example` to `.env`:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+2. Edit `.env` and set `IM_SECRET` to your preferred secret value:
+
+    ```bash
+    IM_SECRET="your-secret-key-here"
+    ```
+
+    This secret is used to hash email addresses found on scraped pages. You can generate a secure random value with:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
 ## Usage
 
 ### From a file

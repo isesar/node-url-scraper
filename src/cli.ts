@@ -1,7 +1,11 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import process from 'node:process'
+import { config } from 'dotenv'
 import { createPipeline } from './core/pipeline'
+
+// Load environment variables from .env file
+config()
 
 function printUsage() {
     const msg = `Usage:\n  url-scraper <path-to-text-file>\n  (no args): read from STDIN and start processing immediately\n\nInput format:\n  Wrap content in [ ... ] and include a URL. The last URL-like token\n  inside the bracket pair will be scraped.\n  Example: [hello https://example.com world]\n\nTips:\n  - When reading from STDIN, press Ctrl+D to finish input.`
@@ -27,7 +31,12 @@ function main() {
         const filePath = path.resolve(__dirname, rel)
         const stream = fs.createReadStream(filePath, { encoding: 'utf8' })
         stream.on('data', (chunk) => pipeline.handleRawChunk(chunk))
-        stream.on('end', () => pipeline.end())
+        stream.on('end', () => {
+            pipeline.end()
+            pipeline.onComplete(() => {
+                process.exitCode = 0
+            })
+        })
         stream.on('error', (err) => {
             process.stderr.write(
                 `[ERROR] Failed to read file: ${filePath} - ${err instanceof Error ? err.message : String(err)}\n`,
@@ -40,8 +49,19 @@ function main() {
 
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', (chunk) => pipeline.handleRawChunk(chunk))
-    process.stdin.on('end', () => pipeline.end())
+    process.stdin.on('end', () => {
+        pipeline.end()
+        pipeline.onComplete(() => {
+            process.exitCode = 0
+        })
+    })
     process.stdin.on('error', (err) => {
+        // Ignore EIO errors on stdin close (common when terminal is interrupted)
+        if (err instanceof Error && 'code' in err && err.code === 'EIO') {
+            pipeline.end()
+            process.exitCode = 0
+            return
+        }
         process.stderr.write(
             `[ERROR] stdin error: ${err instanceof Error ? err.message : String(err)}\n`,
         )
